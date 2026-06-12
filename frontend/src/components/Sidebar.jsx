@@ -10,6 +10,7 @@ export default function Sidebar({
   busy,
   candidateCount,
   rankedCount,
+  averageScore,
   message,
 }) {
   const [title, setTitle] = useState("");
@@ -43,8 +44,8 @@ export default function Sidebar({
       <div className="brand-lockup">
         <span className="brand-mark">AI</span>
         <div>
-          <strong>Resume Screening</strong>
-          <span>Recruiter workspace</span>
+          <strong>Resume Screening ATS</strong>
+          <span>Recruiter command center</span>
         </div>
       </div>
 
@@ -139,9 +140,19 @@ export default function Sidebar({
 
       <section id="candidate-table" className="sidebar-section">
         <h2>Candidates</h2>
-        <div className="pipeline-stats">
-          <span>{candidateCount} uploaded</span>
-          <span>{rankedCount} ranked</span>
+        <div className="pipeline-stats" aria-label="Pipeline summary">
+          <span>
+            <strong>{candidateCount}</strong>
+            Uploaded
+          </span>
+          <span>
+            <strong>{rankedCount}</strong>
+            Ranked
+          </span>
+          <span>
+            <strong>{averageScore === null ? "--" : averageScore.toFixed(1)}</strong>
+            Avg score
+          </span>
         </div>
         <button
           className="primary-button full-width"

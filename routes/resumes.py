@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from dependencies import get_db
+from backend.dependencies import get_db
 from models.schemas import CandidateRead, CandidateUploadResponse, ResumeDeleteResponse
 from services.resume_service import get_resume_service
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from functools import lru_cache
 
-from config import get_settings
+from backend.config import get_settings
 from models.entities import Candidate, JobDescription
 
 

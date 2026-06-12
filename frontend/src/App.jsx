@@ -28,6 +28,18 @@ export default function App() {
   // Defer large ranking list updates so filtering and uploads feel responsive.
   const deferredRankings = useDeferredValue(rankings);
   const activeJob = jobs.find((job) => job.id === activeJobId) || null;
+  const scoreStats = useMemo(() => {
+    if (!deferredRankings.length) {
+      return { averageScore: null, topScore: null };
+    }
+
+    const scores = deferredRankings.map((candidate) => Number(candidate.match_score) || 0);
+    const total = scores.reduce((sum, score) => sum + score, 0);
+    return {
+      averageScore: total / scores.length,
+      topScore: Math.max(...scores),
+    };
+  }, [deferredRankings]);
   const selectedCandidate = useMemo(
     () =>
       deferredRankings.find((candidate) => candidate.candidate_id === selectedCandidateId) ||
@@ -201,6 +213,7 @@ export default function App() {
         busy={busy}
         candidateCount={candidates.length}
         rankedCount={deferredRankings.length}
+        averageScore={scoreStats.averageScore}
         message={loadingRankings ? "Analyzing candidates..." : message}
       />
 
@@ -215,6 +228,9 @@ export default function App() {
           onResetFilter={handleResetFilter}
           selectedCandidateId={selectedCandidate?.candidate_id || null}
           onSelectCandidate={setSelectedCandidateId}
+          averageScore={scoreStats.averageScore}
+          topScore={scoreStats.topScore}
+          candidateCount={candidates.length}
         />
       </main>
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from dependencies import get_db
+from backend.dependencies import get_db
 from models.schemas import (
     DirectMatchRequest,
     DirectMatchResponse,

@@ -6,7 +6,7 @@ from uuid import uuid4
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
-from config import get_settings
+from backend.config import get_settings
 from models.entities import JobDescription
 from services.nlp_service import NLPService, get_nlp_service
 from services.resume_service import ResumeService
@@ -35,35 +35,42 @@ class JobService:
         storage_path: str | None = None
         uploaded_text = ""
 
-        if file and file.filename:
-            source_filename = file.filename
-            saved_path = await self._save_file(file, self.settings.job_dir)
-            storage_path = str(saved_path)
-            uploaded_text = self._extract_job_text(saved_path)
+        saved_path: Path | None = None
+        try:
+            if file and file.filename:
+                source_filename = Path(file.filename).name
+                saved_path = await self._save_file(file, self.settings.job_dir)
+                storage_path = str(saved_path)
+                uploaded_text = self._extract_job_text(saved_path)
 
-        final_text = "\n".join(
-            part for part in [description or "", uploaded_text] if part
-        ).strip()
-        if not final_text:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Provide a job description in text or file form.",
+            final_text = "\n".join(
+                part for part in [description or "", uploaded_text] if part
+            ).strip()
+            if not final_text:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Provide a job description in text or file form.",
+                )
+
+            parsed_job = self.nlp_service.parse_job_description(final_text)
+            job = JobDescription(
+                title=title.strip(),
+                source_filename=source_filename,
+                storage_path=storage_path,
+                description_text=final_text,
+                cleaned_text=parsed_job["cleaned_text"],
+                required_skills=parsed_job["required_skills"],
+                minimum_years_experience=parsed_job["minimum_years_experience"],
             )
-
-        parsed_job = self.nlp_service.parse_job_description(final_text)
-        job = JobDescription(
-            title=title.strip(),
-            source_filename=source_filename,
-            storage_path=storage_path,
-            description_text=final_text,
-            cleaned_text=parsed_job["cleaned_text"],
-            required_skills=parsed_job["required_skills"],
-            minimum_years_experience=parsed_job["minimum_years_experience"],
-        )
-        db.add(job)
-        db.commit()
-        db.refresh(job)
-        return job
+            db.add(job)
+            db.commit()
+            db.refresh(job)
+            return job
+        except Exception:
+            db.rollback()
+            if saved_path and saved_path.exists():
+                saved_path.unlink()
+            raise
 
     def create_job_from_text(
         self,
@@ -101,17 +108,20 @@ class JobService:
         return job
 
     async def _save_file(self, file: UploadFile, directory: Path) -> Path:
-        unique_name = f"{uuid4().hex}_{file.filename}"
+        safe_filename = Path(file.filename or "job-description.txt").name
+        unique_name = f"{uuid4().hex}_{safe_filename}"
         destination = directory / unique_name
         content = await file.read()
-        validate_uploaded_file(
-            filename=file.filename,
-            content=content,
-            allowed_extensions={".pdf", ".txt"},
-            entity_name="Job description",
-        )
-        destination.write_bytes(content)
-        await file.close()
+        try:
+            validate_uploaded_file(
+                filename=file.filename,
+                content=content,
+                allowed_extensions={".pdf", ".txt"},
+                entity_name="Job description",
+            )
+            destination.write_bytes(content)
+        finally:
+            await file.close()
         return destination
 
     @staticmethod

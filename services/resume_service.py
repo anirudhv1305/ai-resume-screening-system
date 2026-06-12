@@ -8,7 +8,7 @@ from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from config import get_settings
+from backend.config import get_settings
 from models.entities import Candidate
 from models.schemas import CandidateRead, ResumeDeleteResponse
 from services.nlp_service import NLPService, get_nlp_service
@@ -30,35 +30,45 @@ class ResumeService:
             )
 
         candidates: list[Candidate] = []
-        for file in files:
-            self._validate_pdf(file)
-            saved_path = await self._save_file(file, self.settings.resume_dir)
-            resume_text = self.extract_text_from_pdf(saved_path)
-            if not resume_text.strip():
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"No readable text found in {file.filename}.",
+        saved_paths: list[Path] = []
+        try:
+            for file in files:
+                self._validate_pdf(file)
+                saved_path = await self._save_file(file, self.settings.resume_dir)
+                saved_paths.append(saved_path)
+                resume_text = self.extract_text_from_pdf(saved_path)
+                if not resume_text.strip():
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"No readable text found in {file.filename}.",
+                    )
+
+                parsed_resume = self.nlp_service.parse_resume(resume_text)
+                original_filename = Path(file.filename or saved_path.name).name
+                candidate = Candidate(
+                    filename=original_filename,
+                    storage_path=str(saved_path),
+                    name=parsed_resume["name"],
+                    email=parsed_resume["email"],
+                    phone=parsed_resume["phone"],
+                    resume_text=resume_text,
+                    cleaned_text=parsed_resume["cleaned_text"],
+                    skills=parsed_resume["skills"],
+                    education=parsed_resume["education"],
+                    experience_years=parsed_resume["experience_years"],
+                    experience_highlights=parsed_resume["experience_highlights"],
                 )
+                db.add(candidate)
+                candidates.append(candidate)
 
-            parsed_resume = self.nlp_service.parse_resume(resume_text)
-            original_filename = Path(file.filename or saved_path.name).name
-            candidate = Candidate(
-                filename=original_filename,
-                storage_path=str(saved_path),
-                name=parsed_resume["name"],
-                email=parsed_resume["email"],
-                phone=parsed_resume["phone"],
-                resume_text=resume_text,
-                cleaned_text=parsed_resume["cleaned_text"],
-                skills=parsed_resume["skills"],
-                education=parsed_resume["education"],
-                experience_years=parsed_resume["experience_years"],
-                experience_highlights=parsed_resume["experience_highlights"],
-            )
-            db.add(candidate)
-            candidates.append(candidate)
+            db.commit()
+        except Exception:
+            db.rollback()
+            for saved_path in saved_paths:
+                if saved_path.exists():
+                    saved_path.unlink()
+            raise
 
-        db.commit()
         for candidate in candidates:
             db.refresh(candidate)
         return candidates
@@ -141,14 +151,16 @@ class ResumeService:
         unique_name = f"{uuid4().hex}_{safe_filename}"
         destination = directory / unique_name
         content = await file.read()
-        validate_uploaded_file(
-            filename=file.filename,
-            content=content,
-            allowed_extensions={".pdf"},
-            entity_name="Resume",
-        )
-        destination.write_bytes(content)
-        await file.close()
+        try:
+            validate_uploaded_file(
+                filename=file.filename,
+                content=content,
+                allowed_extensions={".pdf"},
+                entity_name="Resume",
+            )
+            destination.write_bytes(content)
+        finally:
+            await file.close()
         return destination
 
     def _resolve_resume_path(self, storage_path: str) -> Path:

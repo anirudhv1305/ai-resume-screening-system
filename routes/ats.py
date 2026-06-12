@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
-from dependencies import get_db
+from backend.dependencies import get_db
 from models.schemas import CandidateUploadResponse, RankRequest, ResultsResponse
 from services.resume_service import get_resume_service
 from services.screening_service import get_screening_service

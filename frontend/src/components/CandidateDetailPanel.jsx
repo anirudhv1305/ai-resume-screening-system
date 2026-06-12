@@ -54,11 +54,8 @@ export default function CandidateDetailPanel({ candidate, activeJob, busy, onDel
     return (
       <aside className="detail-panel empty-detail" aria-label="Candidate details">
         <p className="surface-label">Candidate Detail</p>
-        <h2>Select a candidate</h2>
-        <p className="muted-text">
-          The profile review, score breakdown, matched skills, and missing skills will appear
-          here after screening.
-        </p>
+        <h2>No candidate selected</h2>
+        <p className="muted-text">Screening details will appear here.</p>
       </aside>
     );
   }
@@ -69,7 +66,7 @@ export default function CandidateDetailPanel({ candidate, activeJob, busy, onDel
         <div>
           <p className="surface-label">Candidate Detail</p>
           <h2>{candidate.candidate_name || candidate.filename}</h2>
-          <span>{candidate.filename}</span>
+          <span>{candidate.email || candidate.filename}</span>
         </div>
         <strong className="detail-score">{candidate.match_score.toFixed(1)}</strong>
       </div>

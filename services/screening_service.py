@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from models.entities import Candidate, JobDescription, ScreeningResult
 from models.schemas import RankedCandidate
@@ -27,6 +27,8 @@ class ScreeningService:
         job = db.scalar(select(JobDescription).where(JobDescription.id == job_id))
         if job is None:
             raise ValueError("Job description not found.")
+        if candidate_ids is not None and not candidate_ids:
+            raise ValueError("At least one candidate id is required when filtering.")
 
         candidate_query = select(Candidate)
         if candidate_ids:
@@ -65,7 +67,9 @@ class ScreeningService:
     ) -> list[RankedCandidate]:
         results = list(
             db.scalars(
-                select(ScreeningResult).where(ScreeningResult.job_id == job_id)
+                select(ScreeningResult)
+                .options(selectinload(ScreeningResult.candidate))
+                .where(ScreeningResult.job_id == job_id)
             ).all()
         )
 
@@ -74,6 +78,8 @@ class ScreeningService:
 
         for result in results:
             candidate = result.candidate
+            if candidate is None:
+                continue
             candidate_skills = [skill.lower() for skill in (candidate.skills or [])]
             if normalized_filter and normalized_filter not in candidate_skills:
                 continue
@@ -110,6 +116,8 @@ class ScreeningService:
         title: str | None = None,
         candidate_ids: list[int] | None = None,
     ) -> list[RankedCandidate]:
+        if candidate_ids is not None and not candidate_ids:
+            raise ValueError("At least one candidate id is required when filtering.")
         cleaned_job_text = self.nlp_service.clean_text(job_description)
         if not cleaned_job_text:
             raise ValueError("Job description text is required.")

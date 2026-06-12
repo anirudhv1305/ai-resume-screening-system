@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from dependencies import get_db
+from backend.dependencies import get_db
 from models.entities import JobDescription
 from models.schemas import JobRead, JobUploadResponse
 from services.job_service import get_job_service

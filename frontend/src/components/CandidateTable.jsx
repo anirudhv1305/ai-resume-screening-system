@@ -14,6 +14,9 @@ export default function CandidateTable({
   onResetFilter,
   selectedCandidateId,
   onSelectCandidate,
+  averageScore,
+  topScore,
+  candidateCount,
 }) {
   return (
     <section className="candidate-panel">
@@ -21,6 +24,11 @@ export default function CandidateTable({
         <div>
           <p className="surface-label">Candidates</p>
           <h1>{activeJob ? activeJob.title : "No active job selected"}</h1>
+          <div className="job-context">
+            <span>{candidateCount} resumes</span>
+            <span>{rankings.length} ranked</span>
+            <span>{activeJob?.minimum_years_experience || 0} yrs required</span>
+          </div>
         </div>
 
         <form
@@ -43,6 +51,21 @@ export default function CandidateTable({
             Reset
           </button>
         </form>
+      </div>
+
+      <div className="score-summary" aria-label="Score summary">
+        <div>
+          <span>Average match</span>
+          <strong>{averageScore === null ? "--" : averageScore.toFixed(1)}</strong>
+        </div>
+        <div>
+          <span>Top candidate</span>
+          <strong>{topScore === null ? "--" : topScore.toFixed(1)}</strong>
+        </div>
+        <div>
+          <span>Required skills</span>
+          <strong>{activeJob?.required_skills?.length || 0}</strong>
+        </div>
       </div>
 
       <div className="table-scroll">
@@ -99,7 +122,7 @@ export default function CandidateTable({
             ) : (
               <tr>
                 <td className="table-state" colSpan="4">
-                  Upload resumes, choose a job description, then run screening.
+                  No ranked candidates yet.
                 </td>
               </tr>
             )}

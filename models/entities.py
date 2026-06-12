@@ -5,7 +5,7 @@ from datetime import datetime
 from sqlalchemy import DateTime, Float, ForeignKey, JSON, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from database import Base
+from backend.database import Base
 
 
 class Candidate(Base):
@@ -59,8 +59,12 @@ class ScreeningResult(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    candidate_id: Mapped[int] = mapped_column(ForeignKey("candidates.id"), nullable=False)
-    job_id: Mapped[int] = mapped_column(ForeignKey("job_descriptions.id"), nullable=False)
+    candidate_id: Mapped[int] = mapped_column(
+        ForeignKey("candidates.id"), nullable=False, index=True
+    )
+    job_id: Mapped[int] = mapped_column(
+        ForeignKey("job_descriptions.id"), nullable=False, index=True
+    )
     skill_score: Mapped[float] = mapped_column(Float, default=0.0)
     experience_score: Mapped[float] = mapped_column(Float, default=0.0)
     semantic_score: Mapped[float] = mapped_column(Float, default=0.0)

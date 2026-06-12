@@ -5,7 +5,7 @@ import re
 from datetime import datetime
 from functools import lru_cache
 
-from config import get_settings
+from backend.config import get_settings
 
 
 logger = logging.getLogger(__name__)
