@@ -25,16 +25,6 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     logger.info("Starting up — initialising database...")
     init_db()
-    logger.info("Pre-warming NLP and embedding models...")
-    from services.nlp_service import get_nlp_service
-    from services.matching_service import get_matching_service
-    try:
-        _ = get_nlp_service().nlp
-        _ = get_nlp_service().skill_matcher
-        _ = get_matching_service().model
-        logger.info("Models ready.")
-    except Exception as exc:
-        logger.warning("Model pre-warm failed (non-fatal): %s", exc)
     yield
 
 
