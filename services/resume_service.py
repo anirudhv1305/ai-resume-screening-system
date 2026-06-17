@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 from uuid import uuid4
 
-import fitz
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -13,6 +12,7 @@ from models.entities import Candidate
 from models.schemas import CandidateRead, ResumeDeleteResponse
 from services.nlp_service import NLPService, get_nlp_service
 from utils.file_validation import validate_uploaded_file
+from utils.pdf_extraction import PDFExtractionStrategy
 
 
 class ResumeService:
@@ -213,15 +213,34 @@ class ResumeService:
 
     @staticmethod
     def extract_text_from_pdf(path: Path) -> str:
+        """
+        Extract text from PDF using fallback strategy.
+        
+        Attempts extraction in order: PyMuPDF → PyPDF2 → pdfplumber.
+        Returns the extraction with the highest quality score.
+        
+        Args:
+            path: Path to the PDF file.
+            
+        Returns:
+            Extracted text.
+            
+        Raises:
+            HTTPException: If all extraction methods fail.
+        """
         try:
-            with fitz.open(path) as document:
-                pages = [page.get_text("text") for page in document]
+            strategy = PDFExtractionStrategy()
+            return strategy.extract(str(path))
+        except RuntimeError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Failed to parse PDF {path.name}: {exc}",
+            ) from exc
         except Exception as exc:  # pragma: no cover
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Failed to parse PDF {path.name}: {exc}",
             ) from exc
-        return "\n".join(pages)
 
 
 def get_resume_service() -> ResumeService:

@@ -25,6 +25,7 @@ class JobRead(BaseModel):
     id: int
     title: str
     source_filename: str | None = None
+    description_text: str = ""
     required_skills: list[str] = Field(default_factory=list)
     minimum_years_experience: float = 0.0
     created_at: datetime | None = None
@@ -58,6 +59,7 @@ class DirectMatchRequest(BaseModel):
     job_description: str
     title: str | None = None
     candidate_ids: list[int] | None = None
+    generate_ai_insights: bool = False  # Phase 5: Optional AI insights
 
 
 class RankRequest(BaseModel):
@@ -83,6 +85,18 @@ class RankedCandidate(BaseModel):
     missing_skills: list[str] = Field(default_factory=list)
     explanation: list[str] = Field(default_factory=list)
     screened_at: datetime | None = None
+    # Phase 6: keyword + qualification fields
+    keyword_score: float | None = None
+    qualifications_score: float | None = None
+    matched_keywords: list[str] = Field(default_factory=list)
+    missing_keywords: list[str] = Field(default_factory=list)
+    matched_qualifications: list[str] = Field(default_factory=list)
+    missing_qualifications: list[str] = Field(default_factory=list)
+    # Phase 5: AI-enhanced fields (optional, backward compatible)
+    ai_suggestions: list[str] | None = None
+    improvements: list[str] | None = None
+    recommendation: str | None = None
+    recommendation_reason: str | None = None
 
 
 class RankingResponse(BaseModel):

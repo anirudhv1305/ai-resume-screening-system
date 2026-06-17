@@ -49,8 +49,12 @@ export async function uploadResumes(files) {
   return data;
 }
 
-export async function processResumes(payload) {
-  const { data } = await apiClient.post("/screening/process", payload);
+export async function matchResumes({ job_description, title, candidate_ids }) {
+  const { data } = await apiClient.post("/screening/match", {
+    job_description,
+    title,
+    candidate_ids,
+  });
   return data;
 }
 

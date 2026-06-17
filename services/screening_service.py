@@ -115,6 +115,7 @@ class ScreeningService:
         job_description: str,
         title: str | None = None,
         candidate_ids: list[int] | None = None,
+        generate_ai_insights: bool = False,
     ) -> list[RankedCandidate]:
         if candidate_ids is not None and not candidate_ids:
             raise ValueError("At least one candidate id is required when filtering.")
@@ -134,8 +135,8 @@ class ScreeningService:
 
         # Encode all resume texts plus the job description in one batch to avoid
         # recomputing the same job embedding for every candidate.
-        texts_to_encode = [candidate.cleaned_text for candidate in candidates]
-        texts_to_encode.append(parsed_job["cleaned_text"])
+        texts_to_encode = [candidate.cleaned_text[:2000] for candidate in candidates]
+        texts_to_encode.append(parsed_job["cleaned_text"][:2000])
         embeddings = self.matching_service.encode_texts(texts_to_encode)
         job_embedding = embeddings[-1]
 
@@ -152,6 +153,8 @@ class ScreeningService:
                     parsed_job["minimum_years_experience"]
                 ),
                 semantic_score=semantic_score,
+                generate_ai_insights=generate_ai_insights,
+                job_title=title,
             )
 
             rankings.append(
@@ -172,6 +175,18 @@ class ScreeningService:
                     missing_skills=list(scores["missing_skills"]),
                     explanation=list(scores["explanation"]),
                     screened_at=None,
+                    # Phase 6: keyword + qualification fields
+                    keyword_score=scores.get("keyword_score"),
+                    qualifications_score=scores.get("qualifications_score"),
+                    matched_keywords=list(scores.get("matched_keywords") or []),
+                    missing_keywords=list(scores.get("missing_keywords") or []),
+                    matched_qualifications=list(scores.get("matched_qualifications") or []),
+                    missing_qualifications=list(scores.get("missing_qualifications") or []),
+                    # Phase 5: AI-enhanced fields
+                    ai_suggestions=scores.get("ai_suggestions"),
+                    improvements=scores.get("improvements"),
+                    recommendation=scores.get("recommendation"),
+                    recommendation_reason=scores.get("recommendation_reason"),
                 )
             )
 

@@ -27,8 +27,22 @@ class Settings(BaseSettings):
     sentence_transformer_model: str = "all-MiniLM-L6-v2"
     spacy_model: str = "en_core_web_sm"
 
+    # AI Provider configuration
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4o-mini"
+    anthropic_api_key: str = ""
+    claude_model: str = "claude-3-5-sonnet-20241022"
+    google_api_key: str = ""
+    gemini_model: str = "gemini-1.5-flash"
+    preferred_ai_provider: str = "openai"  # openai, claude, or gemini
+
+    # Scoring weights for 5-dimension model (total = 100%)
     skill_weight: float = 0.40
-    experience_weight: float = 0.30
+    keyword_weight: float = 0.20
+    experience_weight: float = 0.20
+    education_weight: float = 0.10
+    qualifications_weight: float = 0.10
+    # Deprecated: semantic_weight kept for backward compatibility
     semantic_weight: float = 0.30
 
     skill_catalog: list[str] = Field(

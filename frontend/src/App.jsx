@@ -5,7 +5,7 @@ import {
   fetchCandidates,
   fetchJobs,
   fetchRankings,
-  processResumes,
+  matchResumes,
   uploadJob,
   uploadResumes,
 } from "./api/client";
@@ -145,20 +145,22 @@ export default function App() {
       setMessage("Choose or create a job description before processing resumes.");
       return;
     }
+    if (!activeJob?.description_text) {
+      setMessage("The active job has no description text. Re-save the job description first.");
+      return;
+    }
 
     setBusy(true);
     setLoadingRankings(true);
     try {
-      const payload = {
-        job_id: activeJobId,
+      const response = await matchResumes({
+        job_description: activeJob.description_text,
+        title: activeJob.title,
         candidate_ids: candidates.map((candidate) => candidate.id),
-      };
-      const response = await processResumes(payload);
+      });
       startTransition(() => setRankings(response.rankings));
-      const refreshedCandidates = await fetchCandidates();
-      setCandidates(refreshedCandidates);
       setMessage(
-        `Processed ${response.processed_count} candidate(s) for ${activeJob?.title || "the active job"}.`
+        `Screened ${response.total_candidates} candidate(s) for ${activeJob.title}.`
       );
       return true;
     } catch (error) {

@@ -57,9 +57,12 @@ class MatchingServiceTests(unittest.TestCase):
         self.assertEqual(scores["skill_score"], 50.0)
         self.assertEqual(scores["experience_score"], 50.0)
         self.assertEqual(scores["semantic_score"], 80.0)
-        self.assertEqual(scores["match_score"], 59.0)
+        # New weights: skill=40%, keyword=20%(default 100), exp=20%, qual=10%(default 100), semantic=10%
+        # 50*0.4 + 100*0.2 + 50*0.2 + 100*0.1 + 80*0.1 = 20 + 20 + 10 + 10 + 8 = 68.0
+        self.assertEqual(scores["match_score"], 68.0)
         self.assertEqual(scores["matched_skills"], ["python"])
         self.assertEqual(scores["missing_skills"], ["sql"])
+        self.assertEqual(scores["recommendation"], "Moderate Match")
 
 
 class ScreeningServiceTests(unittest.TestCase):

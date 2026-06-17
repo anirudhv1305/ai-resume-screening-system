@@ -28,6 +28,21 @@ EDUCATION_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# Certification and degree patterns
+DEGREE_PATTERN = re.compile(
+    r"\b(bachelor(?:'s)?|master(?:'s)?|phd|m\.?b\.?a|associate|diploma|"
+    r"b\.?(?:tech|sc|a|eng)|m\.?(?:tech|sc|a|eng))\b",
+    re.IGNORECASE,
+)
+
+CERTIFICATION_PATTERN = re.compile(
+    r"\b(aws certified|azure certified|gcp certified|certified kubernetes|"
+    r"ciscomp|oscp|cism|cissp|pmp|itil|scrum master|oracle certified|"
+    r"microsoft certified|comptia|ccna|ccnp|ccie|aws solution architect|"
+    r"aws developer|azure administrator|gcp associate cloud engineer)\b",
+    re.IGNORECASE,
+)
+
 
 class NLPService:
     def __init__(self) -> None:
@@ -202,6 +217,142 @@ class NLPService:
         if years:
             return min(years)
         return 0.0
+
+    def extract_keywords(self, text: str, top_n: int = 10) -> list[str]:
+        """
+        Extract keywords from text using TF-IDF-like heuristics.
+        
+        Returns top N keywords based on frequency and word length.
+        Filters out common stop words, short words, and generic recruiting terms.
+        
+        Args:
+            text: Input text to extract keywords from
+            top_n: Number of keywords to return (default 10)
+            
+        Returns:
+            List of keywords sorted by relevance
+        """
+        if not text:
+            return []
+        
+        # Common stop words to filter
+        stop_words = {
+            "the", "a", "an", "and", "or", "but", "is", "are", "was", "were",
+            "be", "been", "being", "have", "has", "had", "do", "does", "did",
+            "will", "would", "could", "should", "may", "might", "must", "can",
+            "of", "in", "on", "at", "to", "for", "from", "by", "with", "as",
+            "that", "this", "these", "those", "i", "you", "he", "she", "it",
+            "we", "they", "what", "which", "who", "when", "where", "why", "how",
+        }
+        
+        # Generic recruiting terms to filter
+        generic_terms = {
+            "required", "requirements", "experience", "candidate", "candidates",
+            "position", "positions", "role", "roles", "job", "jobs",
+            "responsibilities", "responsibility", "duties", "description",
+            "skills", "skill", "ability", "abilities", "qualifications",
+            "looking", "seeking", "hiring", "team", "work", "working",
+            "years", "year", "company", "opportunity", "opportunities",
+            "knowledge", "understanding", "degree", "bachelor", "master",
+        }
+        
+        # Clean and tokenize
+        text_lower = text.lower()
+        # Split on whitespace and punctuation, preserve technical terms with +, #, ., -, /
+        words = re.findall(r"\b[a-z]+(?:[+#.\-/][a-z]+)?\b", text_lower)
+        
+        # Filter: remove stop words, generic terms, keep words 3+ chars
+        filtered_words = [
+            w for w in words 
+            if w not in stop_words 
+            and w not in generic_terms
+            and len(w) >= 3 
+            and not w.isdigit()
+        ]
+        
+        if not filtered_words:
+            return []
+        
+        # Calculate frequency
+        from collections import Counter
+        word_freq = Counter(filtered_words)
+        
+        # Get top N keywords
+        top_keywords = [word for word, _ in word_freq.most_common(top_n)]
+        return top_keywords
+
+    def extract_qualifications(self, text: str) -> dict[str, list[str]]:
+        """
+        Extract degrees and certifications from text.
+        
+        Returns:
+            Dictionary with 'degrees' and 'certifications' lists
+        """
+        if not text:
+            return {"degrees": [], "certifications": []}
+        
+        degrees = []
+        certifications = []
+        seen_degrees = set()
+        seen_certs = set()
+        
+        # Extract degrees
+        for match in DEGREE_PATTERN.finditer(text):
+            degree = match.group(0).strip().lower()
+            normalized = degree.replace(".", "")
+            if normalized not in seen_degrees:
+                degrees.append(match.group(0).strip())
+                seen_degrees.add(normalized)
+            if len(degrees) >= 5:
+                break
+        
+        # Extract certifications
+        for match in CERTIFICATION_PATTERN.finditer(text):
+            cert = match.group(0).strip().lower()
+            if cert not in seen_certs:
+                certifications.append(match.group(0).strip())
+                seen_certs.add(cert)
+            if len(certifications) >= 5:
+                break
+        
+        return {
+            "degrees": degrees,
+            "certifications": certifications,
+        }
+
+    @staticmethod
+    def compare_qualifications(
+        candidate_quals: dict[str, list[str]],
+        job_quals: dict[str, list[str]],
+    ) -> dict[str, list[str]]:
+        """
+        Compare candidate qualifications with job requirements.
+        
+        Args:
+            candidate_quals: Dict with 'degrees' and 'certifications' lists
+            job_quals: Dict with required 'degrees' and 'certifications'
+            
+        Returns:
+            Dict with 'matched' and 'missing' qualifications
+        """
+        candidate_degrees = {d.lower() for d in (candidate_quals.get("degrees") or [])}
+        candidate_certs = {c.lower() for c in (candidate_quals.get("certifications") or [])}
+        
+        required_degrees = {d.lower() for d in (job_quals.get("degrees") or [])}
+        required_certs = {c.lower() for c in (job_quals.get("certifications") or [])}
+        
+        matched_degrees = sorted(candidate_degrees.intersection(required_degrees))
+        missing_degrees = sorted(required_degrees.difference(candidate_degrees))
+        
+        matched_certs = sorted(candidate_certs.intersection(required_certs))
+        missing_certs = sorted(required_certs.difference(candidate_certs))
+        
+        return {
+            "matched_degrees": matched_degrees,
+            "missing_degrees": missing_degrees,
+            "matched_certifications": matched_certs,
+            "missing_certifications": missing_certs,
+        }
 
 
 @lru_cache

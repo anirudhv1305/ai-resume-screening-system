@@ -1,7 +1,13 @@
 function getStatus(score) {
-  if (score >= 75) return "Good";
-  if (score >= 50) return "Average";
+  if (score >= 80) return "Strong";
+  if (score >= 60) return "Moderate";
   return "Weak";
+}
+
+function getStatusClass(score) {
+  if (score >= 80) return "strong";
+  if (score >= 60) return "moderate";
+  return "weak";
 }
 
 export default function CandidateTable({
@@ -54,17 +60,33 @@ export default function CandidateTable({
       </div>
 
       <div className="score-summary" aria-label="Score summary">
-        <div>
-          <span>Average match</span>
-          <strong>{averageScore === null ? "--" : averageScore.toFixed(1)}</strong>
+        <div className="summary-card">
+          <div className="summary-icon average"></div>
+          <div>
+            <span>Average Match</span>
+            <strong>{averageScore === null ? "--" : averageScore.toFixed(1)}%</strong>
+          </div>
         </div>
-        <div>
-          <span>Top candidate</span>
-          <strong>{topScore === null ? "--" : topScore.toFixed(1)}</strong>
+        <div className="summary-card">
+          <div className="summary-icon top"></div>
+          <div>
+            <span>Top Candidate</span>
+            <strong>{topScore === null ? "--" : topScore.toFixed(1)}%</strong>
+          </div>
         </div>
-        <div>
-          <span>Required skills</span>
-          <strong>{activeJob?.required_skills?.length || 0}</strong>
+        <div className="summary-card">
+          <div className="summary-icon skills"></div>
+          <div>
+            <span>Required Skills</span>
+            <strong>{activeJob?.required_skills?.length || 0}</strong>
+          </div>
+        </div>
+        <div className="summary-card">
+          <div className="summary-icon candidates"></div>
+          <div>
+            <span>Total Candidates</span>
+            <strong>{rankings.length}</strong>
+          </div>
         </div>
       </div>
 
@@ -112,7 +134,7 @@ export default function CandidateTable({
                     <td className="score-cell">{candidate.match_score.toFixed(1)}</td>
                     <td>{candidate.experience_years.toFixed(1)} yrs</td>
                     <td>
-                      <span className={`status-pill status-${status.toLowerCase()}`}>
+                      <span className={`status-pill status-${getStatusClass(candidate.match_score)}`}>
                         {status}
                       </span>
                     </td>

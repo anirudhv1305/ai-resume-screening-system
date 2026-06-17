@@ -66,6 +66,7 @@ def match_uploaded_resumes(
             job_description=payload.job_description,
             title=payload.title,
             candidate_ids=payload.candidate_ids,
+            generate_ai_insights=payload.generate_ai_insights,  # Phase 5
         )
     except ValueError as exc:
         raise HTTPException(

@@ -1,6 +1,8 @@
 .venv/
+venv/
 __pycache__/
 *.pyc
+*.pyo
 .env
 tmp*/
 resume_screening.db
@@ -12,3 +14,10 @@ backend/storage/resumes/*
 backend/storage/jobs/*
 !backend/storage/resumes/.gitkeep
 !backend/storage/jobs/.gitkeep
+PHASE_*.md
+FINAL_*.md
+IMPLEMENTATION_SUMMARY.md
+SAFE_IMPLEMENTATION_PLAN.md
+SPEC_COMPLIANCE_MAPPING.md
+PROJECT_AUDIT_REPORT.md
+demo_phase*.py
