@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -52,12 +54,29 @@ class ScreeningService:
                 db.add(result)
 
             result.skill_score = float(scores["skill_score"])
+            result.keyword_score = float(scores.get("keyword_score") or 0.0)
+            result.qualifications_score = float(
+                scores.get("qualifications_score") or 0.0
+            )
             result.experience_score = float(scores["experience_score"])
             result.semantic_score = float(scores["semantic_score"])
             result.match_score = float(scores["match_score"])
             result.matched_skills = list(scores["matched_skills"])
             result.missing_skills = list(scores["missing_skills"])
+            result.matched_keywords = list(scores.get("matched_keywords") or [])
+            result.missing_keywords = list(scores.get("missing_keywords") or [])
+            result.matched_qualifications = list(
+                scores.get("matched_qualifications") or []
+            )
+            result.missing_qualifications = list(
+                scores.get("missing_qualifications") or []
+            )
+            result.recommendation = scores.get("recommendation")
+            result.recommendation_reason = scores.get("recommendation_reason")
+            result.ai_suggestions = scores.get("ai_suggestions")
+            result.improvements = scores.get("improvements")
             result.explanation = list(scores["explanation"])
+            result.created_at = datetime.now(timezone.utc)
 
         db.commit()
         return self.get_rankings(db, job_id)
@@ -102,6 +121,24 @@ class ScreeningService:
                     missing_skills=result.missing_skills or [],
                     explanation=result.explanation or [],
                     screened_at=result.created_at,
+                    keyword_score=(
+                        float(result.keyword_score)
+                        if result.keyword_score is not None
+                        else None
+                    ),
+                    qualifications_score=(
+                        float(result.qualifications_score)
+                        if result.qualifications_score is not None
+                        else None
+                    ),
+                    matched_keywords=result.matched_keywords or [],
+                    missing_keywords=result.missing_keywords or [],
+                    matched_qualifications=result.matched_qualifications or [],
+                    missing_qualifications=result.missing_qualifications or [],
+                    ai_suggestions=result.ai_suggestions,
+                    improvements=result.improvements,
+                    recommendation=result.recommendation,
+                    recommendation_reason=result.recommendation_reason,
                 )
             )
 
@@ -132,6 +169,12 @@ class ScreeningService:
             raise ValueError("No uploaded resumes are available for matching.")
 
         parsed_job = self.nlp_service.parse_job_description(cleaned_job_text)
+        job = self._resolve_or_create_job_for_match(
+            db,
+            raw_job_description=job_description,
+            title=title,
+            parsed_job=parsed_job,
+        )
 
         # Encode all resume texts plus the job description in one batch to avoid
         # recomputing the same job embedding for every candidate.
@@ -157,6 +200,41 @@ class ScreeningService:
                 job_title=title,
             )
 
+            result = db.scalar(
+                select(ScreeningResult).where(
+                    ScreeningResult.candidate_id == candidate.id,
+                    ScreeningResult.job_id == job.id,
+                )
+            )
+            if result is None:
+                result = ScreeningResult(candidate_id=candidate.id, job_id=job.id)
+                db.add(result)
+
+            result.skill_score = float(scores["skill_score"])
+            result.keyword_score = float(scores.get("keyword_score") or 0.0)
+            result.qualifications_score = float(
+                scores.get("qualifications_score") or 0.0
+            )
+            result.experience_score = float(scores["experience_score"])
+            result.semantic_score = float(scores["semantic_score"])
+            result.match_score = float(scores["match_score"])
+            result.matched_skills = list(scores["matched_skills"])
+            result.missing_skills = list(scores["missing_skills"])
+            result.matched_keywords = list(scores.get("matched_keywords") or [])
+            result.missing_keywords = list(scores.get("missing_keywords") or [])
+            result.matched_qualifications = list(
+                scores.get("matched_qualifications") or []
+            )
+            result.missing_qualifications = list(
+                scores.get("missing_qualifications") or []
+            )
+            result.recommendation = scores.get("recommendation")
+            result.recommendation_reason = scores.get("recommendation_reason")
+            result.ai_suggestions = scores.get("ai_suggestions")
+            result.improvements = scores.get("improvements")
+            result.explanation = list(scores.get("explanation") or [])
+            result.created_at = datetime.now(timezone.utc)
+
             rankings.append(
                 RankedCandidate(
                     candidate_id=candidate.id,
@@ -174,7 +252,7 @@ class ScreeningService:
                     matched_skills=list(scores["matched_skills"]),
                     missing_skills=list(scores["missing_skills"]),
                     explanation=list(scores["explanation"]),
-                    screened_at=None,
+                    screened_at=result.created_at,
                     # Phase 6: keyword + qualification fields
                     keyword_score=scores.get("keyword_score"),
                     qualifications_score=scores.get("qualifications_score"),
@@ -190,8 +268,58 @@ class ScreeningService:
                 )
             )
 
+        db.commit()
         rankings.sort(key=lambda item: item.match_score, reverse=True)
         return rankings
+
+    def _resolve_or_create_job_for_match(
+        self,
+        db: Session,
+        *,
+        raw_job_description: str,
+        title: str | None,
+        parsed_job: dict,
+    ) -> JobDescription:
+        normalized_title = (title or "Ad Hoc Resume Ranking").strip() or "Ad Hoc Resume Ranking"
+        description_text = (raw_job_description or "").strip()
+        cleaned_text = str(parsed_job["cleaned_text"])
+
+        exact_match = db.scalar(
+            select(JobDescription)
+            .where(
+                JobDescription.title == normalized_title,
+                JobDescription.description_text == description_text,
+            )
+            .order_by(JobDescription.id.desc())
+        )
+        if exact_match is not None:
+            return exact_match
+
+        cleaned_match = db.scalar(
+            select(JobDescription)
+            .where(
+                JobDescription.title == normalized_title,
+                JobDescription.cleaned_text == cleaned_text,
+            )
+            .order_by(JobDescription.id.desc())
+        )
+        if cleaned_match is not None:
+            return cleaned_match
+
+        job = JobDescription(
+            title=normalized_title,
+            source_filename=None,
+            storage_path=None,
+            description_text=description_text or cleaned_text,
+            cleaned_text=cleaned_text,
+            required_skills=list(parsed_job.get("required_skills") or []),
+            minimum_years_experience=float(
+                parsed_job.get("minimum_years_experience") or 0.0
+            ),
+        )
+        db.add(job)
+        db.flush()
+        return job
 
     def process_job_text(
         self,

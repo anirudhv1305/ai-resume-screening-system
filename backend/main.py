@@ -1,7 +1,13 @@
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
+
+# Prevent transformers from loading TensorFlow/Keras backends, which causes
+# import errors when TF is installed but tf-keras version mismatches.
+os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
+os.environ.setdefault("TF_ENABLE_ONEDNN_OPTS", "0")
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
