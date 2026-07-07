@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     storage_dir: Path = ROOT_DIR / "backend" / "storage"
     resume_dir: Path = ROOT_DIR / "resumes"
-    job_dir: Path = storage_dir / "jobs"
+    job_dir: Path = ROOT_DIR / "backend" / "storage" / "jobs"
 
     cors_origins: list[str] = Field(
         default_factory=lambda: ["http://localhost:5173", "http://127.0.0.1:5173"]
@@ -42,8 +42,8 @@ class Settings(BaseSettings):
     experience_weight: float = 0.20
     education_weight: float = 0.10
     qualifications_weight: float = 0.10
-    # Deprecated: semantic_weight kept for backward compatibility
-    semantic_weight: float = 0.30
+    # semantic_weight retained for backward compatibility only — not used in scoring
+    semantic_weight: float = 0.10
 
     skill_catalog: list[str] = Field(
         default_factory=lambda: [

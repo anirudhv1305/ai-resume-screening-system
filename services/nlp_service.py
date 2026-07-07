@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections import Counter
 from datetime import datetime
 from functools import lru_cache
 
@@ -274,7 +275,6 @@ class NLPService:
             return []
         
         # Calculate frequency
-        from collections import Counter
         word_freq = Counter(filtered_words)
         
         # Get top N keywords

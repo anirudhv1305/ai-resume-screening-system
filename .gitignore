@@ -21,3 +21,6 @@ SAFE_IMPLEMENTATION_PLAN.md
 SPEC_COMPLIANCE_MAPPING.md
 PROJECT_AUDIT_REPORT.md
 demo_phase*.py
+e2e_server.log
+sample_resume_e2e.pdf
+e2e_check.py

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from sqlalchemy import create_engine
-from sqlalchemy import inspect, text
+import logging
+
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from backend.config import get_settings
 
 
+logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
@@ -14,11 +16,23 @@ class Base(DeclarativeBase):
     pass
 
 
-engine_kwargs: dict[str, object] = {"pool_pre_ping": True}
-if settings.database_url.startswith("sqlite"):
-    engine_kwargs["connect_args"] = {"check_same_thread": False}
+def _build_engine():
+    url = settings.database_url
+    kwargs: dict[str, object] = {"pool_pre_ping": True}
 
-engine = create_engine(settings.database_url, **engine_kwargs)
+    if url.startswith("sqlite"):
+        kwargs["connect_args"] = {"check_same_thread": False}
+    else:
+        # PostgreSQL — use a modest pool suitable for Render's free tier
+        kwargs["pool_size"] = 5
+        kwargs["max_overflow"] = 10
+        kwargs["pool_timeout"] = 30
+        kwargs["pool_recycle"] = 1800
+
+    return create_engine(url, **kwargs)
+
+
+engine = _build_engine()
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
@@ -30,12 +44,18 @@ def init_db() -> None:
 
 
 def _upgrade_screening_results_table() -> None:
+    """
+    Idempotent runtime migration: add Phase 6 columns to screening_results
+    if they are missing.  Works on both SQLite and PostgreSQL.
+    """
     inspector = inspect(engine)
     if "screening_results" not in inspector.get_table_names():
         return
 
     existing = {col["name"] for col in inspector.get_columns("screening_results")}
-    required_columns = {
+
+    # Map column name → DDL type (compatible with both SQLite and PostgreSQL)
+    required_columns: dict[str, str] = {
         "keyword_score": "FLOAT",
         "qualifications_score": "FLOAT",
         "matched_keywords": "TEXT",
@@ -48,10 +68,13 @@ def _upgrade_screening_results_table() -> None:
         "improvements": "TEXT",
     }
 
+    missing_cols = {k: v for k, v in required_columns.items() if k not in existing}
+    if not missing_cols:
+        return
+
     with engine.begin() as connection:
-        for name, ddl_type in required_columns.items():
-            if name in existing:
-                continue
+        for name, ddl_type in missing_cols.items():
+            logger.info("Schema migration: adding column %s to screening_results", name)
             connection.execute(
                 text(f"ALTER TABLE screening_results ADD COLUMN {name} {ddl_type}")
             )

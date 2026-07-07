@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from functools import lru_cache
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -361,6 +362,7 @@ class ScreeningService:
         return job, rankings
 
 
+@lru_cache
 def get_screening_service() -> ScreeningService:
     return ScreeningService(
         get_matching_service(),

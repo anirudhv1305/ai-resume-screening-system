@@ -1,252 +1,158 @@
-import { startTransition, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Route, Routes } from "react-router-dom";
 
 import {
   deleteResume,
   fetchCandidates,
   fetchJobs,
-  fetchRankings,
   matchResumes,
   uploadJob,
   uploadResumes,
 } from "./api/client";
-import CandidateDetailPanel from "./components/CandidateDetailPanel";
-import CandidateTable from "./components/CandidateTable";
-import Sidebar from "./components/Sidebar";
+import Layout from "./components/Layout";
+import ToastContainer from "./components/Toast";
+import DashboardPage from "./pages/DashboardPage";
+import ResumesPage from "./pages/ResumesPage";
+import JobsPage from "./pages/JobsPage";
+import ScreeningPage from "./pages/ScreeningPage";
+import AnalyticsPage from "./pages/AnalyticsPage";
+import SettingsPage from "./pages/SettingsPage";
 
 export default function App() {
   const [jobs, setJobs] = useState([]);
   const [candidates, setCandidates] = useState([]);
   const [rankings, setRankings] = useState([]);
   const [activeJobId, setActiveJobId] = useState(null);
-  const [skillFilter, setSkillFilter] = useState("");
-  const [appliedSkillFilter, setAppliedSkillFilter] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [loadingRankings, setLoadingRankings] = useState(false);
-  const [selectedCandidateId, setSelectedCandidateId] = useState(null);
-  const [message, setMessage] = useState("System ready. Add a job description to begin.");
+  const [loading, setLoading] = useState(true);
+  const [screening, setScreening] = useState(false);
+  const [toasts, setToasts] = useState([]);
+  const toastId = useRef(0);
 
-  // Defer large ranking list updates so filtering and uploads feel responsive.
-  const deferredRankings = useDeferredValue(rankings);
-  const activeJob = jobs.find((job) => job.id === activeJobId) || null;
-  const scoreStats = useMemo(() => {
-    if (!deferredRankings.length) {
-      return { averageScore: null, topScore: null };
-    }
+  const toast = useCallback((message, type = "info") => {
+    const id = ++toastId.current;
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
+  }, []);
 
-    const scores = deferredRankings.map((candidate) => Number(candidate.match_score) || 0);
-    const total = scores.reduce((sum, score) => sum + score, 0);
-    return {
-      averageScore: total / scores.length,
-      topScore: Math.max(...scores),
-    };
-  }, [deferredRankings]);
-  const selectedCandidate = useMemo(
-    () =>
-      deferredRankings.find((candidate) => candidate.candidate_id === selectedCandidateId) ||
-      deferredRankings[0] ||
-      null,
-    [deferredRankings, selectedCandidateId]
-  );
-
-  useEffect(() => {
-    async function loadInitialData() {
-      setBusy(true);
-      try {
-        const [jobData, candidateData] = await Promise.all([
-          fetchJobs(),
-          fetchCandidates(),
-        ]);
-        setJobs(jobData);
-        setCandidates(candidateData);
-        if (jobData.length) {
-          setActiveJobId(jobData[0].id);
-        }
-      } catch (error) {
-        setMessage(resolveError(error, "Failed to load the dashboard."));
-      } finally {
-        setBusy(false);
-      }
-    }
-
-    loadInitialData();
+  const dismissToast = useCallback((id) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
   useEffect(() => {
-    if (!activeJobId) {
-      setRankings([]);
-      return;
-    }
-
-    async function loadRankings() {
-      setLoadingRankings(true);
+    async function init() {
+      setLoading(true);
       try {
-        const response = await fetchRankings(activeJobId, appliedSkillFilter);
-        startTransition(() => setRankings(response.rankings));
-      } catch (error) {
-        setMessage(resolveError(error, "Failed to load rankings."));
+        const [jobData, candidateData] = await Promise.all([fetchJobs(), fetchCandidates()]);
+        setJobs(jobData);
+        setCandidates(candidateData);
+        if (jobData.length) setActiveJobId(jobData[0].id);
+      } catch {
+        toast("Failed to load dashboard data.", "error");
       } finally {
-        setLoadingRankings(false);
+        setLoading(false);
       }
     }
+    init();
+  }, [toast]);
 
-    loadRankings();
-  }, [activeJobId, appliedSkillFilter]);
-
-  useEffect(() => {
-    if (!deferredRankings.length) {
-      setSelectedCandidateId(null);
-      return;
-    }
-
-    const selectedStillExists = deferredRankings.some(
-      (candidate) => candidate.candidate_id === selectedCandidateId
-    );
-    if (!selectedStillExists) {
-      setSelectedCandidateId(deferredRankings[0].candidate_id);
-    }
-  }, [deferredRankings, selectedCandidateId]);
+  const activeJob = jobs.find((j) => j.id === activeJobId) || null;
 
   async function handleCreateJob(payload) {
-    setBusy(true);
     try {
-      const response = await uploadJob(payload);
-      setJobs((currentJobs) => [response.job, ...currentJobs]);
-      setActiveJobId(response.job.id);
-      setMessage(`Job "${response.job.title}" saved and ready for screening.`);
-      return true;
-    } catch (error) {
-      setMessage(resolveError(error, "Unable to upload the job description."));
-      return false;
-    } finally {
-      setBusy(false);
+      const res = await uploadJob(payload);
+      setJobs((prev) => [res.job, ...prev]);
+      setActiveJobId(res.job.id);
+      toast(`Job "${res.job.title}" created successfully.`, "success");
+      return res.job;
+    } catch (err) {
+      toast(resolveError(err, "Failed to create job."), "error");
+      return null;
     }
   }
 
-  async function handleResumeUpload(files) {
-    setBusy(true);
+  async function handleUploadResumes(files) {
     try {
-      const response = await uploadResumes(files);
-      setCandidates((currentCandidates) => [
-        ...response.candidates,
-        ...currentCandidates,
-      ]);
-      setMessage(`${response.uploaded_count} resume(s) uploaded and parsed successfully.`);
+      const res = await uploadResumes(files);
+      setCandidates((prev) => [...res.candidates, ...prev]);
+      toast(`${res.uploaded_count} resume(s) uploaded successfully.`, "success");
       return true;
-    } catch (error) {
-      setMessage(resolveError(error, "Unable to upload one or more resumes."));
+    } catch (err) {
+      toast(resolveError(err, "Failed to upload resumes."), "error");
       return false;
-    } finally {
-      setBusy(false);
     }
   }
 
-  async function handleProcess() {
-    if (!activeJobId) {
-      setMessage("Choose or create a job description before processing resumes.");
-      return;
+  async function handleRunScreening(jobId, candidateIds) {
+    const job = jobs.find((j) => j.id === jobId);
+    if (!job?.description_text) {
+      toast("Job has no description text. Re-save the job first.", "error");
+      return null;
     }
-    if (!activeJob?.description_text) {
-      setMessage("The active job has no description text. Re-save the job description first.");
-      return;
-    }
-
-    setBusy(true);
-    setLoadingRankings(true);
+    setScreening(true);
     try {
-      const response = await matchResumes({
-        job_description: activeJob.description_text,
-        title: activeJob.title,
-        candidate_ids: candidates.map((candidate) => candidate.id),
+      const res = await matchResumes({
+        job_description: job.description_text,
+        title: job.title,
+        candidate_ids: candidateIds,
       });
-      startTransition(() => setRankings(response.rankings));
-      setMessage(
-        `Screened ${response.total_candidates} candidate(s) for ${activeJob.title}.`
-      );
-      return true;
-    } catch (error) {
-      setMessage(resolveError(error, "Resume processing failed."));
-      return false;
+      setRankings(res.rankings);
+      setActiveJobId(jobId);
+      toast(`Screened ${res.total_candidates} candidate(s) successfully.`, "success");
+      return res.rankings;
+    } catch (err) {
+      toast(resolveError(err, "Screening failed."), "error");
+      return null;
     } finally {
-      setBusy(false);
-      setLoadingRankings(false);
+      setScreening(false);
     }
   }
 
   async function handleDeleteResume(resumeId) {
-    setBusy(true);
     try {
-      const response = await deleteResume(resumeId);
-      setCandidates((currentCandidates) =>
-        currentCandidates.filter((candidate) => candidate.id !== resumeId)
-      );
-      startTransition(() =>
-        setRankings((currentRankings) =>
-          currentRankings.filter((candidate) => candidate.candidate_id !== resumeId)
-        )
-      );
-      setMessage(response.message);
+      const res = await deleteResume(resumeId);
+      setCandidates((prev) => prev.filter((c) => c.id !== resumeId));
+      setRankings((prev) => prev.filter((r) => r.candidate_id !== resumeId));
+      toast(res.message || "Resume deleted.", "success");
       return true;
-    } catch (error) {
-      setMessage(resolveError(error, "Unable to delete the selected resume."));
+    } catch (err) {
+      toast(resolveError(err, "Failed to delete resume."), "error");
       return false;
-    } finally {
-      setBusy(false);
     }
   }
 
-  function handleApplyFilter() {
-    setAppliedSkillFilter(skillFilter.trim());
-  }
-
-  function handleResetFilter() {
-    setSkillFilter("");
-    setAppliedSkillFilter("");
-  }
+  const sharedProps = {
+    jobs,
+    candidates,
+    rankings,
+    activeJob,
+    activeJobId,
+    setActiveJobId,
+    loading,
+    screening,
+    onCreateJob: handleCreateJob,
+    onUploadResumes: handleUploadResumes,
+    onRunScreening: handleRunScreening,
+    onDeleteResume: handleDeleteResume,
+    toast,
+  };
 
   return (
-    <div className="ats-shell">
-      <Sidebar
-        jobs={jobs}
-        activeJobId={activeJobId}
-        onSelectJob={setActiveJobId}
-        onCreateJob={handleCreateJob}
-        onUploadResumes={handleResumeUpload}
-        onProcess={handleProcess}
-        busy={busy}
-        candidateCount={candidates.length}
-        rankedCount={deferredRankings.length}
-        averageScore={scoreStats.averageScore}
-        message={loadingRankings ? "Analyzing candidates..." : message}
-      />
-
-      <main className="candidate-workspace" aria-label="Candidate rankings">
-        <CandidateTable
-          rankings={deferredRankings}
-          loading={loadingRankings}
-          activeJob={activeJob}
-          skillFilter={skillFilter}
-          setSkillFilter={setSkillFilter}
-          onApplyFilter={handleApplyFilter}
-          onResetFilter={handleResetFilter}
-          selectedCandidateId={selectedCandidate?.candidate_id || null}
-          onSelectCandidate={setSelectedCandidateId}
-          averageScore={scoreStats.averageScore}
-          topScore={scoreStats.topScore}
-          candidateCount={candidates.length}
-        />
-      </main>
-
-      <CandidateDetailPanel
-        key={selectedCandidate?.candidate_id || "empty-detail"}
-        candidate={selectedCandidate}
-        activeJob={activeJob}
-        busy={busy}
-        onDeleteResume={handleDeleteResume}
-      />
-    </div>
+    <>
+      <Layout loading={loading}>
+        <Routes>
+          <Route path="/" element={<DashboardPage {...sharedProps} />} />
+          <Route path="/resumes" element={<ResumesPage {...sharedProps} />} />
+          <Route path="/jobs" element={<JobsPage {...sharedProps} />} />
+          <Route path="/screening" element={<ScreeningPage {...sharedProps} />} />
+          <Route path="/analytics" element={<AnalyticsPage {...sharedProps} />} />
+          <Route path="/settings" element={<SettingsPage />} />
+        </Routes>
+      </Layout>
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+    </>
   );
 }
 
-function resolveError(error, fallbackMessage) {
-  return error?.response?.data?.detail || fallbackMessage;
+function resolveError(err, fallback) {
+  return err?.response?.data?.detail || fallback;
 }
