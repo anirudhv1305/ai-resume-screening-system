@@ -80,6 +80,8 @@ class ScreeningService:
             result.created_at = datetime.now(timezone.utc)
 
         db.commit()
+        import gc
+        gc.collect()
         return self.get_rankings(db, job_id)
 
     def get_rankings(
@@ -270,6 +272,8 @@ class ScreeningService:
             )
 
         db.commit()
+        import gc
+        gc.collect()
         rankings.sort(key=lambda item: item.match_score, reverse=True)
         return rankings
 

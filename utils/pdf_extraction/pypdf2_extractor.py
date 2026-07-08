@@ -1,8 +1,13 @@
 """PyPDF2 PDF extraction implementation."""
 
-from PyPDF2 import PdfReader
-
 from utils.pdf_extraction.base import PDFExtractor
+
+class LazyPdfReader:
+    def __new__(cls, *args, **kwargs):
+        from PyPDF2 import PdfReader
+        return PdfReader(*args, **kwargs)
+
+PdfReader = LazyPdfReader
 
 
 class PyPDF2Extractor(PDFExtractor):

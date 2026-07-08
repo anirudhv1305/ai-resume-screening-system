@@ -77,7 +77,12 @@ class NLPService:
         from spacy.language import Language  # noqa: F401
         try:
             logger.info("Loading spaCy model: %s", model_name)
-            nlp = spacy.load(model_name)
+            nlp = spacy.load(
+                model_name,
+                disable=["tagger", "parser", "attribute_ruler", "lemmatizer"],
+            )
+            if "sentencizer" not in nlp.pipe_names:
+                nlp.add_pipe("sentencizer")
         except OSError:
             logger.warning("spaCy model '%s' not found, falling back to blank 'en'.", model_name)
             nlp = spacy.blank("en")

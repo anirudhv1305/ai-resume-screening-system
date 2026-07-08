@@ -37,11 +37,40 @@ class MatchingService:
         if not texts:
             raise ValueError("At least one text input is required for embedding.")
 
-        return self.model.encode(
-            texts,
-            convert_to_tensor=True,
-            normalize_embeddings=True,
-        )
+        import torch
+
+        if not hasattr(self, "_embedding_cache"):
+            self._embedding_cache = {}
+
+        embeddings = []
+        texts_to_compute = []
+        compute_indices = []
+
+        for idx, text in enumerate(texts):
+            if text in self._embedding_cache:
+                embeddings.append(self._embedding_cache[text])
+            else:
+                embeddings.append(None)
+                texts_to_compute.append(text)
+                compute_indices.append(idx)
+
+        if texts_to_compute:
+            with torch.inference_mode():
+                computed = self.model.encode(
+                    texts_to_compute,
+                    convert_to_tensor=True,
+                    normalize_embeddings=True,
+                )
+            for sub_idx, idx in enumerate(compute_indices):
+                emb = computed[sub_idx]
+                self._embedding_cache[texts_to_compute[sub_idx]] = emb
+                embeddings[idx] = emb
+
+            # Bounded cache size to avoid memory leaks
+            while len(self._embedding_cache) > 200:
+                self._embedding_cache.pop(next(iter(self._embedding_cache)))
+
+        return torch.stack(embeddings)
 
     @staticmethod
     def compute_cosine_similarity(resume_embedding, job_embedding) -> float:
